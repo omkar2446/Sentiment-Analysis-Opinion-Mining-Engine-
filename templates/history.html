@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Sentix AI - Prediction History{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        
+        <!-- Header -->
+        <div class="d-md-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="display-6 fw-bold card-title-custom mb-1">Prediction History</h1>
+                <p class="text-secondary mb-0">Browse and inspect past sentiment classifications stored in your MySQL database.</p>
+            </div>
+            {% if predictions %}
+            <form action="{{ url_for('clear_history') }}" method="POST" onsubmit="return confirm('Are you sure you want to clear all history? This will delete all predictions and feedback from the database.');">
+                <button type="submit" class="btn btn-outline-danger btn-sm mt-3 mt-md-0">
+                    <i class="fa-solid fa-trash-can me-1"></i> Clear All History
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- History Table Glass Card -->
+        <div class="card glass-card p-4">
+            {% if not predictions %}
+                <div class="text-center py-5 text-secondary">
+                    <i class="fa-solid fa-database fa-3x mb-3 text-muted"></i>
+                    <h4>No predictions found</h4>
+                    <p class="mb-4">You haven't run any sentiment predictions yet.</p>
+                    <a href="{{ url_for('home') }}" class="btn btn-primary-custom">
+                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i> Start Analyzing
+                    </a>
+                </div>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table table-custom table-hover">
+                        <thead>
+                            <tr>
+                                <th scope="col" style="width: 5%">ID</th>
+                                <th scope="col" style="width: 50%">Review Text</th>
+                                <th scope="col" style="width: 15%">Predicted Sentiment</th>
+                                <th scope="col" style="width: 15%">Confidence</th>
+                                <th scope="col" style="width: 15%">Prediction Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pred in predictions %}
+                            <tr>
+                                <td><code>#{{ pred.id }}</code></td>
+                                <td>
+                                    <div class="review-cell" title="{{ pred.review_text }}">
+                                        {{ pred.review_text }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge-sentiment sentiment-{{ pred.predicted_sentiment }} px-2 py-1 fs-6" style="font-size: 0.85rem !important;">
+                                        {{ pred.predicted_sentiment }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">{{ "%.0f"|format(pred.confidence * 100) }}%</span>
+                                </td>
+                                <td>
+                                    <span class="text-secondary small">{{ pred.prediction_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

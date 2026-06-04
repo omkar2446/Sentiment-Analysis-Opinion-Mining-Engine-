@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sentiment Analysis Dashboard{% endblock %}</title>
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom Style Sheet -->
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Glowing background blobs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <!-- Glassmorphism Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('home') }}">
+                <i class="fa-solid fa-brain-circuit me-2"></i>Sentix AI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('home') }}">
+                            <i class="fa-solid fa-house-chimney me-1"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/history' %}active{% endif %}" href="{{ url_for('history_page') }}">
+                            <i class="fa-solid fa-clock-rotate-left me-1"></i> History
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/admin' %}active{% endif %}" href="{{ url_for('admin_page') }}">
+                            <i class="fa-solid fa-chart-line me-1"></i> Admin Dashboard
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="main-content">
+        <div class="container">
+            {% if db_err %}
+            <div class="alert alert-warning border-0 glass-card d-flex align-items-center mb-4" role="alert" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3) !important; color: #f8fafc;">
+                <i class="fa-solid fa-triangle-exclamation fs-4 me-3" style="color: #f59e0b;"></i>
+                <div>
+                    <strong class="d-block mb-1" style="color: #f59e0b; font-size: 1.1rem;"><i class="fa-solid fa-database me-1"></i> SQLite Fallback Mode Active</strong>
+                    <span class="text-secondary small">{{ db_err }}</span>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="alert alert-danger border-0 glass-card d-flex align-items-center mb-4" role="alert" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3) !important; color: #f8fafc;">
+                <i class="fa-solid fa-circle-exclamation fs-4 me-3" style="color: #ef4444;"></i>
+                <div>
+                    <strong class="d-block mb-1" style="color: #ef4444; font-size: 1.1rem;"><i class="fa-solid fa-circle-xmark me-1"></i> System Error</strong>
+                    <span class="text-secondary small">{{ error }}</span>
+                </div>
+            </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p class="mb-1">&copy; 2026 Sentix AI Sentiment Analyzer. All rights reserved.</p>
+            <p class="mb-0 text-muted" style="font-size: 0.8rem;">Powered by Flask, Scikit-Learn & MySQL</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5.3 Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Dynamic custom scripts block -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

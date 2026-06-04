@@ -1,0 +1,510 @@
+{% extends 'base.html' %}
+
+{% block title %}Sentix AI - Admin Analytics Dashboard{% endblock %}
+
+{% block content %}
+<!-- Header and System Banner -->
+<div class="d-md-flex justify-content-between align-items-center mb-5">
+    <div>
+        <h1 class="display-6 fw-bold card-title-custom mb-1 text-white">
+            <i class="fa-solid fa-chart-line text-primary me-2"></i>Analytics Control Panel
+        </h1>
+        <p class="text-secondary mb-0">Monitor model inference latency, class ratios, system telemetry, and live pipeline metrics.</p>
+    </div>
+    <div class="mt-3 mt-md-0 d-flex gap-2">
+        <span class="badge-premium d-flex align-items-center gap-2">
+            <span class="status-dot {% if db_type == 'sqlite' %}warning{% endif %}"></span>
+            {{ db_type|upper }} MODE ACTIVE
+        </span>
+        <a href="{{ url_for('admin_export') }}" class="btn btn-sm btn-primary-custom d-flex align-items-center gap-2">
+            <i class="fa-solid fa-file-arrow-down"></i> Export Logs (CSV)
+        </a>
+    </div>
+</div>
+
+<!-- Premium High-Level Telemetry Cards -->
+<div class="row g-4 mb-5">
+    <!-- Card 1: Total Predictions -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card glass-card p-4 h-100 position-relative overflow-hidden">
+            <div class="metric-label mb-2"><i class="fa-solid fa-server me-1"></i> Total Analyses</div>
+            <div class="metric-value text-white">{{ total_predictions }}</div>
+            <div class="small text-secondary mt-1">Live Database Records</div>
+            <i class="fa-solid fa-cube position-absolute end-0 bottom-0 me-3 mb-3 text-primary opacity-10 fa-3x"></i>
+        </div>
+    </div>
+    
+    <!-- Card 2: Average Confidence -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card glass-card p-4 h-100 position-relative overflow-hidden">
+            <div class="metric-label mb-2"><i class="fa-solid fa-bolt me-1"></i> Average Confidence</div>
+            <div class="metric-value text-indigo" style="color: #818cf8;">{{ "%.1f"|format(avg_confidence * 100) }}%</div>
+            <div class="small text-secondary mt-1">Inference Probability Avg</div>
+            <i class="fa-solid fa-wand-magic-sparkles position-absolute end-0 bottom-0 me-3 mb-3 text-indigo opacity-10 fa-3x"></i>
+        </div>
+    </div>
+
+    <!-- Card 3: Feature Vocabulary -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card glass-card p-4 h-100 position-relative overflow-hidden">
+            <div class="metric-label mb-2"><i class="fa-solid fa-brain me-1"></i> TF-IDF Vocabulary</div>
+            <div class="metric-value text-success" style="color: var(--pos-color);">{{ vocab_size }}</div>
+            <div class="small text-secondary mt-1">N-Gram Model Features</div>
+            <i class="fa-solid fa-microchip position-absolute end-0 bottom-0 me-3 mb-3 text-success opacity-10 fa-3x"></i>
+        </div>
+    </div>
+
+    <!-- Card 4: Average Length -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card glass-card p-4 h-100 position-relative overflow-hidden">
+            <div class="metric-label mb-2"><i class="fa-solid fa-file-text me-1"></i> Average Length</div>
+            <div class="metric-value text-warning" style="color: var(--neu-color);">{{ "%.0f"|format(avg_length) }} <span class="fs-6 fw-normal text-muted">chars</span></div>
+            <div class="small text-secondary mt-1">Review String Size Avg</div>
+            <i class="fa-solid fa-calculator position-absolute end-0 bottom-0 me-3 mb-3 text-warning opacity-10 fa-3x"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Interactive Graphical Metrics Dashboard -->
+<div class="row g-4 mb-5">
+    <!-- Doughnut Chart: Sentiment Distribution -->
+    <div class="col-lg-5">
+        <div class="card glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="card-title-custom m-0 text-white"><i class="fa-solid fa-chart-pie text-primary me-2"></i>Sentiment Ratio</h4>
+                <span class="badge bg-secondary-subtle small-tag rounded px-2">Ratio</span>
+            </div>
+            <div class="chart-container" style="position: relative; height:260px; width:100%">
+                <canvas id="sentimentChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Chart: 7-Day Activity Trends -->
+    <div class="col-lg-7">
+        <div class="card glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="card-title-custom m-0 text-white"><i class="fa-solid fa-chart-area text-primary me-2"></i>Analysis Activity</h4>
+                <span class="badge bg-secondary-subtle small-tag rounded px-2">7 Days</span>
+            </div>
+            <div class="chart-container" style="position: relative; height:260px; width:100%">
+                {% if not activity_labels %}
+                    <div class="d-flex flex-column justify-content-center align-items-center h-100 text-secondary">
+                        <i class="fa-solid fa-timeline fa-2x mb-2 text-muted"></i>
+                        <p class="small mb-0">Insufficient activity logs to render timeline.</p>
+                    </div>
+                {% else %}
+                    <canvas id="activityChart"></canvas>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Telemetry Details & Diagnostic Playground -->
+<div class="row g-4 mb-5">
+    <!-- Column 1: Model & Environment Telemetry Specs -->
+    <div class="col-lg-5">
+        <div class="card glass-card p-4 h-100">
+            <h4 class="card-title-custom mb-4 text-white"><i class="fa-solid fa-gears text-primary me-2"></i>Model Telemetry Specs</h4>
+            
+            <div class="d-flex flex-column gap-3">
+                <div class="diagnostic-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="d-block text-white">Classifier Model</strong>
+                        <small class="text-secondary text-uppercase" style="font-size: 0.7rem;">Algorithm</small>
+                    </div>
+                    <span class="badge bg-dark-subtle border border-secondary-subtle px-3 py-1 font-tech">Logistic Regression</span>
+                </div>
+                
+                <div class="diagnostic-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="d-block text-white">N-Gram Vectorizer</strong>
+                        <small class="text-secondary text-uppercase" style="font-size: 0.7rem;">Vectorization</small>
+                    </div>
+                    <span class="badge bg-dark-subtle border border-secondary-subtle px-3 py-1 font-tech">TF-IDF (1, 2) Range</span>
+                </div>
+
+                <div class="diagnostic-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="d-block text-white">Regularization Penalty</strong>
+                        <small class="text-secondary text-uppercase" style="font-size: 0.7rem;">Hyperparameters</small>
+                    </div>
+                    <span class="badge bg-dark-subtle border border-secondary-subtle px-3 py-1 font-tech">L2 Penalty, C=5.0</span>
+                </div>
+
+                <div class="diagnostic-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="d-block text-white">Database Latency</strong>
+                        <small class="text-secondary text-uppercase" style="font-size: 0.7rem;">Performance Status</small>
+                    </div>
+                    <span class="text-success font-tech"><i class="fa-solid fa-circle-check me-1"></i> < 1.5ms</span>
+                </div>
+
+                <div class="diagnostic-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="d-block text-white">Core System Status</strong>
+                        <small class="text-secondary text-uppercase" style="font-size: 0.7rem;">Server Health</small>
+                    </div>
+                    <span class="text-success font-tech"><i class="fa-solid fa-heart-pulse me-1"></i> ONLINE</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column 2: Live Diagnostic Benchmarking Playground -->
+    <div class="col-lg-7">
+        <div class="card glass-card p-4 h-100">
+            <h4 class="card-title-custom mb-3 text-white"><i class="fa-solid fa-flask text-primary me-2"></i>Live Diagnostic Benchmark</h4>
+            <p class="text-secondary small mb-3">Evaluate sentiment predictions and inspect raw probability scores across all model classes instantly.</p>
+            
+            <div class="mb-3">
+                <textarea 
+                    id="diag_input" 
+                    class="form-control form-control-custom text-white" 
+                    rows="3" 
+                    placeholder="Enter review text (e.g., 'Not bad, but could have been cheaper...')"
+                ></textarea>
+            </div>
+            
+            <div class="row align-items-center g-3">
+                <div class="col-sm-4">
+                    <button type="button" class="btn btn-primary-custom w-100" id="btn-diag" onclick="runBenchmark()">
+                        <i class="fa-solid fa-bolt me-1"></i> Analyze
+                    </button>
+                </div>
+                <div class="col-sm-8 text-center text-sm-end" id="benchmark-status-box">
+                    <span class="text-secondary small" id="benchmark-status">Ready to test.</span>
+                </div>
+            </div>
+
+            <!-- Probability Breakdown Bars -->
+            <div class="mt-4 pt-2 border-top border-secondary-subtle d-none" id="benchmark-results">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-white fw-bold">Classification Probabilities:</span>
+                    <span id="benchmark-outcome" class="badge-sentiment font-tech text-uppercase px-3 py-1 fs-6"></span>
+                </div>
+                
+                <div class="d-flex flex-column gap-3">
+                    <!-- Positive Bar -->
+                    <div class="pg-bar-container">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary small font-tech"><i class="fa-solid fa-face-smile text-success me-1"></i> Positive Probability</span>
+                            <span class="fw-bold font-tech text-success" id="val-pos">0.0%</span>
+                        </div>
+                        <div class="pg-progress-bar">
+                            <div class="pg-progress-fill bg-success" id="fill-pos"></div>
+                        </div>
+                    </div>
+
+                    <!-- Negative Bar -->
+                    <div class="pg-bar-container">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary small font-tech"><i class="fa-solid fa-face-frown text-danger me-1"></i> Negative Probability</span>
+                            <span class="fw-bold font-tech text-danger" id="val-neg">0.0%</span>
+                        </div>
+                        <div class="pg-progress-bar">
+                            <div class="pg-progress-fill bg-danger" id="fill-neg"></div>
+                        </div>
+                    </div>
+
+                    <!-- Neutral Bar -->
+                    <div class="pg-bar-container">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary small font-tech"><i class="fa-solid fa-face-meh text-warning me-1"></i> Neutral Probability</span>
+                            <span class="fw-bold font-tech text-warning" id="val-neu">0.0%</span>
+                        </div>
+                        <div class="pg-progress-bar">
+                            <div class="pg-progress-fill bg-warning" id="fill-neu"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Database Audit Stream Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card glass-card p-4">
+            <div class="d-md-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="card-title-custom m-0 text-white"><i class="fa-solid fa-list text-primary me-2"></i>Real-time Prediction Logs</h4>
+                    <p class="text-secondary small mb-0">Audit log displaying the 5 most recent natural language classification outputs in the pipeline.</p>
+                </div>
+                <a href="{{ url_for('history_page') }}" class="btn btn-sm btn-outline-secondary rounded-pill py-1 px-3 mt-2 mt-md-0 small-tag font-tech">
+                    <i class="fa-solid fa-database me-1"></i> View Full Database
+                </a>
+            </div>
+
+            {% if not recent_predictions %}
+                <div class="text-center py-4 text-secondary">
+                    <i class="fa-solid fa-timeline fa-2x mb-2 text-muted"></i>
+                    <p class="mb-0">No predictions recorded in the database logs yet.</p>
+                </div>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table table-custom table-hover">
+                        <thead>
+                            <tr>
+                                <th scope="col" style="width: 8%">ID</th>
+                                <th scope="col" style="width: 50%">Inference Review Context</th>
+                                <th scope="col" style="width: 15%">Sentiment</th>
+                                <th scope="col" style="width: 12%">Confidence</th>
+                                <th scope="col" style="width: 15%">Inference Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pred in recent_predictions %}
+                            <tr>
+                                <td><code class="text-primary font-tech">#{{ pred.id }}</code></td>
+                                <td>
+                                    <div class="review-cell text-white-50" title="{{ pred.review_text }}" style="font-size: 0.9rem;">
+                                        {{ pred.review_text }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge-sentiment sentiment-{{ pred.predicted_sentiment }} px-2 py-1" style="font-size: 0.75rem !important;">
+                                        {{ pred.predicted_sentiment }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold font-tech text-white">{{ "%.0f"|format(pred.confidence * 100) }}%</span>
+                                </td>
+                                <td>
+                                    <span class="text-secondary small font-tech">
+                                        {% if pred.prediction_time is string %}
+                                            {{ pred.prediction_time[:16] }}
+                                        {% else %}
+                                            {{ pred.prediction_time.strftime('%Y-%m-%d %H:%M') }}
+                                        {% endif %}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Theme colors mapping
+    const posColor = '#10b981';
+    const negColor = '#ef4444';
+    const neuColor = '#f59e0b';
+    const accentColor = '#6366f1';
+    const textSecondary = '#94a3b8';
+
+    // 1. Sentiment Distribution Chart
+    const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
+    const sentimentChart = new Chart(sentimentCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Positive', 'Negative', 'Neutral'],
+            datasets: [{
+                data: [{{ pos_count }}, {{ neg_count }}, {{ neu_count }}],
+                backgroundColor: [posColor, negColor, neuColor],
+                borderColor: 'rgba(15, 23, 42, 0.9)',
+                borderWidth: 3,
+                hoverOffset: 12
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '76%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: textSecondary,
+                        padding: 15,
+                        font: {
+                            family: "'Space Grotesk', sans-serif",
+                            size: 11
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [{
+            id: 'centerText',
+            beforeDraw: function(chart) {
+                const { width, height, ctx } = chart;
+                ctx.restore();
+                
+                // Draw numeric count
+                const countFontSize = (height / 140).toFixed(2);
+                ctx.font = `600 ${countFontSize}em 'Space Grotesk', sans-serif`;
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#ffffff";
+                const countText = "{{ total_predictions }}";
+                const countX = Math.round((width - ctx.measureText(countText).width) / 2);
+                const countY = height / 2 - 8;
+                ctx.fillText(countText, countX, countY);
+                
+                // Draw "TOTAL" label
+                const labelFontSize = 0.75;
+                ctx.font = `700 ${labelFontSize}em 'Space Grotesk', sans-serif`;
+                ctx.fillStyle = "#64748b";
+                const labelText = "TOTAL";
+                const labelX = Math.round((width - ctx.measureText(labelText).width) / 2);
+                const labelY = height / 2 + 16;
+                ctx.fillText(labelText, labelX, labelY);
+                
+                ctx.save();
+            }
+        }]
+    });
+
+    // 2. Activity Trends Chart (Line Chart)
+    {% if activity_labels %}
+    const activityCtx = document.getElementById('activityChart').getContext('2d');
+    const activityGradient = activityCtx.createLinearGradient(0, 0, 0, 240);
+    activityGradient.addColorStop(0, 'rgba(99, 102, 241, 0.45)');
+    activityGradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+    new Chart(activityCtx, {
+        type: 'line',
+        data: {
+            labels: {{ activity_labels|tojson }},
+            datasets: [{
+                label: 'Analyses Count',
+                data: {{ activity_counts|tojson }},
+                borderColor: '#6366f1',
+                borderWidth: 3.5,
+                backgroundColor: activityGradient,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#818cf8',
+                pointBorderColor: 'rgba(15, 23, 42, 0.9)',
+                pointBorderWidth: 2,
+                pointRadius: 5.5,
+                pointHoverRadius: 7.5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.03)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: textSecondary,
+                        font: {
+                            family: "'Space Grotesk', sans-serif",
+                            size: 10
+                        }
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.03)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: textSecondary,
+                        font: {
+                            family: "'Space Grotesk', sans-serif",
+                            size: 10
+                        },
+                        beginAtZero: true,
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    // 3. Live Benchmark Testing logic
+    function runBenchmark() {
+        const text = document.getElementById('diag_input').value.trim();
+        const btn = document.getElementById('btn-diag');
+        const status = document.getElementById('benchmark-status');
+        const results = document.getElementById('benchmark-results');
+
+        if (!text) {
+            alert('Please enter some review text for analysis.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+        status.innerHTML = '<span class="text-info"><i class="fa-solid fa-gear fa-spin"></i> Contacting model interface...</span>';
+
+        const start = performance.now();
+
+        fetch('/api/admin/benchmark', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ review: text })
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i> Analyze';
+
+            if (!data.success) {
+                status.innerHTML = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${data.error}</span>`;
+                return;
+            }
+
+            const latency = (performance.now() - start).toFixed(0);
+            status.innerHTML = `<span class="text-success"><i class="fa-solid fa-check-double"></i> Evaluated in ${latency}ms | ${data.word_count} words</span>`;
+
+            // Display Results
+            results.classList.remove('d-none');
+            
+            // Set prediction badge
+            const outcomeBadge = document.getElementById('benchmark-outcome');
+            outcomeBadge.className = `badge-sentiment sentiment-${data.prediction} font-tech text-uppercase px-3 py-1 fs-6`;
+            
+            let badgeIcon = '<i class="fa-solid fa-face-smile me-1"></i>';
+            if (data.prediction === 'Negative') badgeIcon = '<i class="fa-solid fa-face-frown me-1"></i>';
+            if (data.prediction === 'Neutral') badgeIcon = '<i class="fa-solid fa-face-meh me-1"></i>';
+            
+            outcomeBadge.innerHTML = `${badgeIcon} ${data.prediction}`;
+
+            // Populate probabilities and animate bars
+            const posProb = (data.probabilities.Positive * 100).toFixed(1);
+            const negProb = (data.probabilities.Negative * 100).toFixed(1);
+            const neuProb = (data.probabilities.Neutral * 100).toFixed(1);
+
+            document.getElementById('val-pos').innerText = `${posProb}%`;
+            document.getElementById('val-neg').innerText = `${negProb}%`;
+            document.getElementById('val-neu').innerText = `${neuProb}%`;
+
+            setTimeout(() => {
+                document.getElementById('fill-pos').style.width = `${posProb}%`;
+                document.getElementById('fill-neg').style.width = `${negProb}%`;
+                document.getElementById('fill-neu').style.width = `${neuProb}%`;
+            }, 50);
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i> Analyze';
+            status.innerHTML = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Network error: ${err.message}</span>`;
+        });
+    }
+</script>
+{% endblock %}
