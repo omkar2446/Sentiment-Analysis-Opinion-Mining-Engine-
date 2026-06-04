@@ -1,4 +1,4 @@
 Flask==3.0.3
 mysql-connector-python==9.7.0
 scikit-learn==1.8.0
-gunicorn==22.1.0
+gunicorn==25.3.0
